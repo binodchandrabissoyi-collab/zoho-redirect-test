@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚠️ Open Redirect PoC — Zoho</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    padding: 24px 16px;
+  }
+  .container { max-width: 780px; margin: 0 auto; }
+
+  .banner {
+    background: rgba(255, 68, 68, 0.12);
+    border: 1px solid #ff4444;
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .banner-icon { font-size: 32px; flex-shrink: 0; }
+  .banner-title { font-size: 20px; font-weight: 700; color: #ff4444; margin-bottom: 4px; }
+  .banner-sub { color: #8b949e; font-size: 13px; }
+
+  .card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .card-header {
+    background: #21262d;
+    border-bottom: 1px solid #30363d;
+    padding: 10px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #8b949e;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-body { padding: 16px; }
+
+  .data-row {
+    display: flex;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid #21262d;
+    font-size: 13px;
+    align-items: flex-start;
+  }
+  .data-row:last-child { border-bottom: none; }
+  .data-key {
+    color: #58a6ff;
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+    min-width: 160px;
+    flex-shrink: 0;
+    padding-top: 1px;
+  }
+  .data-val {
+    color: #e6edf3;
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+    word-break: break-all;
+  }
+  .data-val.highlight { color: #3fb950; font-weight: 600; }
+  .data-val.warn { color: #ff4444; font-weight: 600; }
+  .data-val.muted { color: #8b949e; }
+
+  .param-block {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 12px;
+    margin-top: 8px;
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+  }
+  .param-line { padding: 3px 0; }
+  .param-name { color: #58a6ff; }
+  .param-eq { color: #8b949e; }
+  .param-value { color: #ffa657; word-break: break-all; }
+
+  .proof-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(63,185,80,0.12);
+    border: 1px solid #3fb950;
+    color: #3fb950;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .impact-box {
+    background: rgba(210,153,34,0.1);
+    border: 1px solid #d29922;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-top: 16px;
+    font-size: 13px;
+    color: #d29922;
+  }
+  .impact-box strong { display: block; margin-bottom: 6px; font-size: 14px; }
+  .impact-box ul { padding-left: 18px; line-height: 1.8; }
+
+  footer {
+    margin-top: 24px;
+    text-align: center;
+    color: #484f58;
+    font-size: 11px;
+  }
+
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ff4444; animation: pulse 1.5s infinite; margin-right: 6px; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="banner">
+    <div class="banner-icon">🎯</div>
+    <div>
+      <div class="banner-title">Open Redirect — Exploit Successful</div>
+      <div class="banner-sub">You were redirected here via Zoho's accounts.zoho.com — this page is attacker-controlled</div>
+    </div>
+  </div>
+
+  <div class="proof-badge"><span class="dot"></span> LIVE CAPTURE — Data extracted from your browser</div>
+
+  <!-- Referrer + Landing Info -->
+  <div class="card">
+    <div class="card-header">🔗 Redirect Chain Evidence</div>
+    <div class="card-body">
+      <div class="data-row">
+        <span class="data-key">document.referrer</span>
+        <span class="data-val highlight" id="referrer">—</span>
+      </div>
+      <div class="data-row">
+        <span class="data-key">Landed at (attacker URL)</span>
+        <span class="data-val warn" id="current-url">—</span>
+      </div>
+      <div class="data-row">
+        <span class="data-key">Timestamp</span>
+        <span class="data-val" id="timestamp">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- URL Parameters passed by Zoho -->
+  <div class="card">
+    <div class="card-header">📦 URL Parameters Passed by Zoho (tokens/data)</div>
+    <div class="card-body">
+      <div id="params-container">
+        <div class="data-val muted">No query parameters detected.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Browser / Session Info -->
+  <div class="card">
+    <div class="card-header">🖥️ Victim Browser Info</div>
+    <div class="card-body">
+      <div class="data-row">
+        <span class="data-key">User-Agent</span>
+        <span class="data-val" id="ua">—</span>
+      </div>
+      <div class="data-row">
+        <span class="data-key">Screen Resolution</span>
+        <span class="data-val" id="screen">—</span>
+      </div>
+      <div class="data-row">
+        <span class="data-key">Language</span>
+        <span class="data-val" id="lang">—</span>
+      </div>
+      <div class="data-row">
+        <span class="data-key">Platform</span>
+        <span class="data-val" id="platform">—</span>
+      </div>
+      <div class="data-row">
+        <span class="data-key">URL Hash/Fragment</span>
+        <span class="data-val" id="hash">—</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Impact -->
+  <div class="impact-box">
+    <strong>⚠️ What a real attacker could do from here:</strong>
+    <ul>
+      <li>Display a fake Zoho login page to re-steal credentials</li>
+      <li>Log all URL params (tokens, session IDs) passed by Zoho</li>
+      <li>Serve malware / auto-download via browser exploits</li>
+      <li>Capture referrer header showing victim came from accounts.zoho.com</li>
+    </ul>
+  </div>
+
+  <footer>
+    Security Research PoC — Authorized Bug Bounty Testing<br>
+    Researcher: binodchandrabissoyi@gmail.com | Target: accounts.zoho.com
+  </footer>
+</div>
+
+<script>
+  // Referrer
+  var ref = document.referrer;
+  document.getElementById('referrer').textContent = ref || '(empty — direct navigation or HTTPS referrer policy blocked it)';
+
+  // Current URL
+  document.getElementById('current-url').textContent = window.location.href;
+
+  // Timestamp
+  document.getElementById('timestamp').textContent = new Date().toISOString() + ' (UTC)';
+
+  // URL Params
+  var params = new URLSearchParams(window.location.search);
+  var paramContainer = document.getElementById('params-container');
+  if ([...params].length > 0) {
+    var html = '<div class="param-block">';
+    params.forEach(function(val, key) {
+      html += '<div class="param-line">'
+        + '<span class="param-name">' + escHtml(key) + '</span>'
+        + '<span class="param-eq"> = </span>'
+        + '<span class="param-value">' + escHtml(decodeURIComponent(val)) + '</span>'
+        + '</div>';
+    });
+    html += '</div>';
+    paramContainer.innerHTML = html;
+  }
+
+  // Browser info
+  document.getElementById('ua').textContent = navigator.userAgent;
+  document.getElementById('screen').textContent = screen.width + ' x ' + screen.height + ' @ ' + window.devicePixelRatio + 'x';
+  document.getElementById('lang').textContent = navigator.language;
+  document.getElementById('platform').textContent = navigator.platform || navigator.userAgentData?.platform || 'unknown';
+  document.getElementById('hash').textContent = window.location.hash || '(none)';
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+</script>
+</body>
+</html>
